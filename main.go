@@ -35,7 +35,7 @@ var static_id int
 
 func connectDB() {
 	// Define the connection string
-	connStr := "host=10.24.113.223 port=5432 user=robot password=cisco123 dbname=pdea sslmode=disable"
+	connStr := "host=localhost port=5432 user=robot password=cisco123 dbname=pdea sslmode=disable"
 	var err error
 	// Open a connection to the database
 	db, err = sql.Open("postgres", connStr)
@@ -115,11 +115,7 @@ func getCarsDataAllValue() ([]Vehichle, error) {
 	defer rows.Close()
 	for rows.Next() {
 		var car Vehichle
-		err := rows.Scan(&car.ID, &car.SpotNumber, &car.License_plate, &car.EntryTime, &car.ExitTime)
-		if err != nil {
-			fmt.Println("subham err", err)
-			//continue
-		}
+		rows.Scan(&car.ID, &car.SpotNumber, &car.License_plate, &car.EntryTime, &car.ExitTime)
 		res = append(res, car)
 	}
 	return res, nil
