@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/gorilla/mux"
+	_ "github.com/lib/pq"
 )
 
 type ParkingSpot struct {
@@ -41,15 +42,13 @@ func connectDB() {
 	fmt.Println("Successfully connected to the PostgreSQL database!")
 
 	// Define the SQL to create a schema
-	schemaSQL := `
-CREATE TABLE IF NOT EXISTS parking_spots (
+	schemaSQL := `CREATE TABLE IF NOT EXISTS parking_spots (
 id SERIAL PRIMARY KEY,
 spot_number TEXT ,
 type TEXT NOT NULL,
 is_available  BOOLEAN NOT NULL
 );
 `
-
 	// Execute the SQL statement
 	_, err = db.Exec(schemaSQL)
 	if err != nil {
@@ -103,9 +102,12 @@ func ParkingSpotsEntry(w http.ResponseWriter, r *http.Request) {
 			static = d.ID
 		}
 	}
+	static++
+	reqBody.ID = static
 	insertParkData(reqBody)
 	w.WriteHeader(http.StatusCreated)
-
+	resJson, _ := json.Marshal(reqBody)
+	w.Write(resJson)
 }
 func ParkingSpotsGetAll(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("ParkingSpotsGetAll")
@@ -141,8 +143,8 @@ func ParkingSpotsGetById(w http.ResponseWriter, r *http.Request) {
 }
 
 func updateParkingData(p ParkingSpot) {
-	qr := `UPDATE parking_spots SET type = $1 and is_available = $2 where id = $3;`
-	db.Exec(qr, p.Type, p.IsAvailable, p.ID)
+	qr := `UPDATE parking_spots SET type = $1 , is_available = $2 ,  spot_number = $3 where id = $4;`
+	db.Exec(qr, p.Type, p.IsAvailable, p.SpotNumber, p.ID)
 }
 func ParkingSpotsUpdate(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Path[len("/api/parking-spots/"):]
@@ -173,6 +175,7 @@ func ParkingSpotsUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	p.IsAvailable = reqBody.IsAvailable
 	p.Type = reqBody.Type
+	p.SpotNumber = reqBody.SpotNumber
 	updateParkingData(p)
 	resJson, _ := json.Marshal(p)
 	w.WriteHeader(http.StatusAccepted)
