@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	_ "github.com/lib/pq"
 )
 
 type Vehichle struct {
@@ -44,6 +45,7 @@ func connectDB() {
 	db, err = sql.Open("postgres", connStr)
 	if err != nil {
 		fmt.Printf("Error opening database: %v", err)
+		return
 	}
 
 	// Ping the database to verify the connection
@@ -55,8 +57,7 @@ func connectDB() {
 	fmt.Println("Successfully connected to the PostgreSQL database!")
 
 	// Define the SQL to create a schema
-	schemaSQL := `
-CREATE TABLE IF NOT EXISTS vehicle_records (
+	schemaSQL := `CREATE TABLE IF NOT EXISTS vehicle_records (
 id SERIAL PRIMARY KEY,
 spot_number TEXT NOT NULL,
 license_plate TEXT NOT NULL,
@@ -103,9 +104,10 @@ func updateParkingSpot(p ParkingSpot) {
 	qr := `UPDATE parking_rec SET is_available = $1 where spot_number = $2;`
 	db.Exec(qr, p.IsAvailable, p.SpotNumber)
 }
-func insertVechileEntry(v Vehichle) {
+func insertVechileEntry(v Vehichle) error {
 	qr := `INSERT INTO vehicle_records(id, spot_number, license_plate , entry_time) VALUES($1, $2, $3,$4);`
-	db.Exec(qr)
+	_, err := db.Exec(qr, v.ID, v.SpotNumber, v.License_plate, v.EntryTime)
+	return err
 }
 func getAllVData() ([]Vehichle, error) {
 	qr := `select id, spot_number, license_plate , entry_time, exit_time from vehicle_records;`
@@ -152,7 +154,7 @@ func RegisterEntry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !Sp.IsAvailable {
-		http.Error(w, "Parking spot not found", http.StatusNotFound)
+		http.Error(w, "Parking spot not available", http.StatusNotFound)
 		return
 	}
 
@@ -167,9 +169,20 @@ func RegisterEntry(w http.ResponseWriter, r *http.Request) {
 		if static_id <= d.ID {
 			static_id = d.ID
 		}
+		if d.License_plate == reqBody.License_plate && d.ExitTime.IsZero() {
+			http.Error(w, "Vehicle already present", http.StatusConflict)
+			return
+		}
 	}
+	static_id++
+	reqBody.ID = static_id
 	reqBody.EntryTime = time.Now()
-	insertVechileEntry(reqBody)
+	err = insertVechileEntry(reqBody)
+	if err != nil {
+		fmt.Println("server error entry : ", err)
+		http.Error(w, "Server error", http.StatusInternalServerError)
+		return
+	}
 	Sp.IsAvailable = false
 	updateParkingSpot(Sp)
 	res := VehichleRes{ID: reqBody.ID, SpotNumber: reqBody.SpotNumber, License_plate: reqBody.License_plate, EntryTime: converTime(reqBody.EntryTime)}
